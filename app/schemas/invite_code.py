@@ -3,11 +3,11 @@ from pydantic import BaseModel
 import uuid
 
 class InviteCodeCreate(BaseModel):
-    unit_id: uuid.UUID
+    unit_id: int
 
 class InviteCodeResponse(BaseModel):
     code: str
-    unit_id: uuid.UUID
+    unit_id: int
     used: bool
 
     class Config:
