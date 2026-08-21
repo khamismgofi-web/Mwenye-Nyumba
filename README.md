@@ -1,11 +1,142 @@
-<div align="center">
+# Mwenye-Nyumba 🏢
+> **Property Management System for Family Rental Businesses**
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+Mwenye-Nyumba ("Landlord" in Swahili) is a modern property management web application tailored for managing residential and commercial properties, units, tenant leases, automated rent billing, M-Pesa payment tracking, and tenant maintenance requests.
 
-  <h1>Built with AI Studio</h2>
+---
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+## 🚀 Tech Stack
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+- **Backend:** Python 3.10+, FastAPI, PostgreSQL / SQLite (async with SQLAlchemy 2.0 & `asyncpg` / `aiosqlite`), Pydantic v2, Alembic for migrations, Passlib (bcrypt), PyJWT / python-jose.
+- **Frontend:** TypeScript, React 19, Vite, Tailwind CSS, Lucide Icons, Motion.
+- **Security:** Strict server-side Role-Based Access Control (RBAC) separating **Admin** and **Tenant** portals, JWT Bearer access & refresh tokens, password hashing with bcrypt, sanitized responses (passwords never exposed).
 
-</div>
+---
+
+## 📁 Project Structure
+
+```text
+├── app/
+│   ├── core/
+│   │   ├── config.py         # App settings & env loading
+│   │   ├── database.py       # Async SQLAlchemy session engine
+│   │   ├── security.py       # Bcrypt hashing & JWT token generators
+│   │   └── dependencies.py   # Auth dependencies & RBAC permission guards
+│   ├── models/
+│   │   ├── base.py           # SQLAlchemy Base and timestamp mixin
+│   │   ├── user.py           # User authentication & roles (Admin, Tenant)
+│   │   ├── property.py       # Real estate property listings
+│   │   ├── unit.py           # Individual rental units & occupancy status
+│   │   ├── tenant.py         # Leases, contacts & tenant credentials
+│   │   ├── payment.py        # Rent payments, M-Pesa/Bank references, status
+│   │   └── maintenance.py    # Repair tickets & status workflows
+│   ├── schemas/              # Pydantic v2 input/output validation models
+│   ├── routers/              # API Endpoints (/auth, /properties, /units, /tenants, /payments, /maintenance)
+│   └── main.py               # FastAPI application setup & CORS
+├── alembic/                  # Database migration scripts
+│   ├── versions/
+│   │   └── 001_initial_schema.py
+│   └── env.py
+├── seed.py                   # Realistic demo dataset seeder
+├── requirements.txt          # Python dependencies
+├── src/                      # React TypeScript Frontend
+│   ├── components/           # UI Components (Admin & Tenant views, Modals, Forms)
+│   ├── types.ts              # TypeScript interfaces matching backend schemas
+│   ├── api.ts                # API client & client-side state adapter
+│   └── App.tsx               # Main application layout with role switching
+└── README.md
+```
+
+---
+
+## ⚙️ Backend Setup Instructions
+
+### 1. Prerequisites
+- Python 3.10+
+- PostgreSQL (or use the built-in SQLite async mode for quick local development)
+- Node.js 18+ and npm
+
+### 2. Create and Activate Virtual Environment
+```bash
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+### 3. Install Python Dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Configure Environment Variables
+Copy `.env.example` to `.env`:
+```bash
+cp .env.example .env
+```
+
+Edit `.env` to configure your database connection string and secret key:
+```env
+# PostgreSQL Example:
+DATABASE_URL="postgresql+asyncpg://postgres:yourpassword@localhost:5432/mwenyenyumba"
+
+# Or SQLite Async Example (Zero-config local testing):
+# DATABASE_URL="sqlite+aiosqlite:///./mwenyenyumba.db"
+
+SECRET_KEY="your-super-secret-random-key-here"
+ALGORITHM="HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES=60
+REFRESH_TOKEN_EXPIRE_DAYS=7
+CORS_ORIGINS="http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000"
+```
+
+### 5. Run Database Migrations
+If using PostgreSQL or managing revisions:
+```bash
+alembic upgrade head
+```
+
+### 6. Seed Demo Data
+Populate realistic properties (Kilimani Heights, Mombasa Road Court, Karen Green Villas), units, tenant accounts, payments (Paid, Pending, Overdue), and maintenance requests:
+```bash
+python seed.py
+```
+
+### 7. Start the FastAPI Backend Server
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+Interactive Swagger API documentation will be available at:
+👉 `http://localhost:8000/api/v1/docs`
+
+---
+
+## 💻 Frontend Setup Instructions
+
+### 1. Install Node Dependencies
+```bash
+npm install
+```
+
+### 2. Start the Frontend Development Server
+```bash
+npm run dev
+```
+Open your browser at `http://localhost:3000` (or `http://localhost:5173`).
+
+---
+
+## 🔐 Default Demo Accounts
+
+| Role | Email | Password | Assigned Unit / Description |
+| :--- | :--- | :--- | :--- |
+| **Landlord / Admin** | `admin@mwenyenyumba.com` | `admin123` | Full access across all properties, units, leases, financials |
+| **Tenant** | `tenant.john@mwenyenyumba.com` | `tenant123` | Kilimani Heights — Apt 101 |
+| **Tenant** | `tenant.mary@mwenyenyumba.com` | `tenant123` | Kilimani Heights — Apt 102 (Overdue rent demo) |
+| **Tenant** | `tenant.david@mwenyenyumba.com` | `tenant123` | Mombasa Road Court — Unit B1 |
+| **Tenant** | `tenant.grace@mwenyenyumba.com` | `tenant123` | Karen Green Villas — Villa #1 |
+
+---
+
+## 🛡️ Role-Based Access Control Rules
+- **Admin**: Full CRUD permissions on properties, units, tenants, invoices, and maintenance tickets.
+- **Tenant**: Access restricted to own lease, unit information, own payment history, and own maintenance requests.
+- **Security Guarantee**: Attempting to access another tenant's unit, payment, or maintenance ticket by guessing an ID returns a strict `403 Forbidden` response (preventing ID enumeration and data leakage).

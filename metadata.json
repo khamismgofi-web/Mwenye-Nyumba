@@ -1,0 +1,6 @@
+{
+  "name": "Mwenye-Nyumba",
+  "description": "Property management web app for family rental businesses with landlord and tenant panels.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
