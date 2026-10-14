@@ -11,14 +11,14 @@ class UserBase(BaseModel):
 
 
 class UserCreate(UserBase):
-    password: str = Field(..., min_length=6, description="Plain text password")
+    password: str = Field(..., min_length=8, max_length=72, description="Plain text password")
 
 
 class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
     role: Optional[UserRole] = None
     is_active: Optional[bool] = None
-    password: Optional[str] = Field(None, min_length=6)
+    password: Optional[str] = Field(None, min_length=8, max_length=72)
 
 
 class UserResponse(UserBase):

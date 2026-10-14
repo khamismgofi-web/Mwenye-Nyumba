@@ -1,6 +1,6 @@
 from typing import Any, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -100,7 +100,8 @@ async def create_tenant(
 ) -> Any:
     """Create tenant record, provision user account, and occupy unit (Admin only)."""
     # 1. Check if email already exists
-    user_stmt = select(User).where(User.email == tenant_in.email)
+    email = str(tenant_in.email).strip().lower()
+    user_stmt = select(User).where(func.lower(User.email) == email)
     user_res = await db.execute(user_stmt)
     if user_res.scalar_one_or_none():
         raise HTTPException(
@@ -109,7 +110,11 @@ async def create_tenant(
         )
 
     # 2. Check if unit exists and is available
-    unit_stmt = select(Unit).where(Unit.id == tenant_in.unit_id).options(selectinload(Unit.property))
+    unit_stmt = (
+        select(Unit)
+        .where(Unit.id == tenant_in.unit_id)
+        .options(selectinload(Unit.property), selectinload(Unit.tenants))
+    )
     unit_res = await db.execute(unit_stmt)
     unit = unit_res.scalar_one_or_none()
     if not unit:
@@ -117,12 +122,16 @@ async def create_tenant(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Unit not found"
         )
+    if unit.tenants or unit.status == UnitStatus.OCCUPIED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Unit is already occupied"
+        )
 
     # 3. Create User record
-    raw_password = tenant_in.password or "tenant123"
     new_user = User(
-        email=tenant_in.email,
-        hashed_password=get_password_hash(raw_password),
+        email=email,
+        hashed_password=get_password_hash(tenant_in.password),
         role=UserRole.TENANT,
         is_active=True,
     )
@@ -301,11 +310,20 @@ async def update_tenant(
 
     # If unit changed, update unit occupancy statuses
     if "unit_id" in update_data and update_data["unit_id"] != old_unit_id:
-        new_unit = await db.get(Unit, update_data["unit_id"])
+        new_unit = (
+            await db.execute(
+                select(Unit).where(Unit.id == update_data["unit_id"]).options(selectinload(Unit.tenants))
+            )
+        ).scalar_one_or_none()
         if not new_unit:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="New unit not found"
+            )
+        if new_unit.tenants or new_unit.status == UnitStatus.OCCUPIED:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="New unit is already occupied"
             )
         new_unit.status = UnitStatus.OCCUPIED
         if t.unit:

@@ -1,13 +1,14 @@
 from typing import Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
+import jwt
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
+from app.core.security import decode_token
 from app.core.database import get_db
 from app.models.tenant import Tenant
 from app.models.user import User, UserRole
@@ -28,14 +29,12 @@ async def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = jwt.decode(
-            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
-        )
+        payload = decode_token(token)
         token_data = TokenPayload(**payload)
         if token_data.sub is None or token_data.type != "access":
             raise credentials_exception
         user_id = int(token_data.sub)
-    except (JWTError, ValidationError, ValueError):
+    except (jwt.PyJWTError, ValidationError, ValueError):
         raise credentials_exception
 
     stmt = select(User).where(User.id == user_id).options(selectinload(User.tenant))

@@ -1,0 +1,12 @@
+.git
+venv
+.venv
+node_modules
+dist
+tests
+*.db
+.env*
+!.env.example
+__pycache__
+src
+public

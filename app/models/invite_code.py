@@ -1,17 +1,28 @@
-# app/models/invite_code.py
-import uuid
-from datetime import datetime
-from sqlalchemy import String, Boolean, ForeignKey, DateTime
-from sqlalchemy.orm import Mapped, mapped_column
-from app.core.db import Base
+from datetime import date, datetime
+from typing import Optional
 
-class InviteCode(Base):
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.models.base import Base, TimestampMixin
+
+
+class InviteCode(Base, TimestampMixin):
     __tablename__ = "invite_codes"
 
-    id: Mapped[int] = mapped_column(primary_key=True, default=uuid.uuid4)
-    code: Mapped[str] = mapped_column(String(12), unique=True, index=True)
-    unit_id: Mapped[int] = mapped_column(ForeignKey("units.id"))
-    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
-    used: Mapped[bool] = mapped_column(Boolean, default=False)
-    used_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
+    code: Mapped[str] = mapped_column(String(12), unique=True, index=True, nullable=False)
+    unit_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("units.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    created_by: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    lease_start: Mapped[date] = mapped_column(Date, nullable=False)
+    lease_end: Mapped[date] = mapped_column(Date, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    used_by: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    used_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -14,7 +14,7 @@ class TenantBase(BaseModel):
 
 class TenantCreate(TenantBase):
     email: EmailStr = Field(..., description="Email for tenant login portal")
-    password: Optional[str] = Field("tenant123", min_length=6, description="Initial password for tenant portal")
+    password: str = Field(..., min_length=8, max_length=72, description="Initial password for tenant portal")
 
 
 class TenantUpdate(BaseModel):

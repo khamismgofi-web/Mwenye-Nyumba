@@ -7,7 +7,7 @@ Mwenye-Nyumba ("Landlord" in Swahili) is a modern property management web applic
 
 ## 🚀 Tech Stack
 
-- **Backend:** Python 3.10+, FastAPI, PostgreSQL / SQLite (async with SQLAlchemy 2.0 & `asyncpg` / `aiosqlite`), Pydantic v2, Alembic for migrations, Passlib (bcrypt), PyJWT / python-jose.
+- **Backend:** Python 3.10+, FastAPI, PostgreSQL / SQLite (async with SQLAlchemy 2.0 & `asyncpg` / `aiosqlite`), Pydantic v2, Alembic for migrations, Passlib (bcrypt), PyJWT.
 - **Frontend:** TypeScript, React 19, Vite, Tailwind CSS, Lucide Icons, Motion.
 - **Security:** Strict server-side Role-Based Access Control (RBAC) separating **Admin** and **Tenant** portals, JWT Bearer access & refresh tokens, password hashing with bcrypt, sanitized responses (passwords never exposed).
 
@@ -30,7 +30,7 @@ Mwenye-Nyumba ("Landlord" in Swahili) is a modern property management web applic
 │   │   ├── tenant.py         # Leases, contacts & tenant credentials
 │   │   ├── payment.py        # Rent payments, M-Pesa/Bank references, status
 │   │   └── maintenance.py    # Repair tickets & status workflows
-│   ├── schemas/              # Pydantic v2 input/output validation models
+│   ├── schemas/              # Pydantic v2 input/output validation models (auth, invite codes, ...)
 │   ├── routers/              # API Endpoints (/auth, /properties, /units, /tenants, /payments, /maintenance)
 │   └── main.py               # FastAPI application setup & CORS
 ├── alembic/                  # Database migration scripts
@@ -42,7 +42,7 @@ Mwenye-Nyumba ("Landlord" in Swahili) is a modern property management web applic
 ├── src/                      # React TypeScript Frontend
 │   ├── components/           # UI Components (Admin & Tenant views, Modals, Forms)
 │   ├── types.ts              # TypeScript interfaces matching backend schemas
-│   ├── api.ts                # API client & client-side state adapter
+│   ├── lib/api.ts            # Real API client with token refresh
 │   └── App.tsx               # Main application layout with role switching
 └── README.md
 ```
@@ -94,7 +94,9 @@ If using PostgreSQL or managing revisions:
 alembic upgrade head
 ```
 
-### 6. Seed Demo Data
+### 6. Seed Demo Data (development only)
+seed.py drops all tables and refuses to run when ENVIRONMENT=production.
+
 Populate realistic properties (Kilimani Heights, Mombasa Road Court, Karen Green Villas), units, tenant accounts, payments (Paid, Pending, Overdue), and maintenance requests:
 ```bash
 python seed.py
@@ -124,7 +126,7 @@ Open your browser at `http://localhost:3000` (or `http://localhost:5173`).
 
 ---
 
-## 🔐 Default Demo Accounts
+## 🔐 Demo Accounts (created by seed.py in development only)
 
 | Role | Email | Password | Assigned Unit / Description |
 | :--- | :--- | :--- | :--- |
@@ -140,3 +142,55 @@ Open your browser at `http://localhost:3000` (or `http://localhost:5173`).
 - **Admin**: Full CRUD permissions on properties, units, tenants, invoices, and maintenance tickets.
 - **Tenant**: Access restricted to own lease, unit information, own payment history, and own maintenance requests.
 - **Security Guarantee**: Attempting to access another tenant's unit, payment, or maintenance ticket by guessing an ID returns a strict `403 Forbidden` response (preventing ID enumeration and data leakage).
+
+
+---
+
+## 🚢 Production Deployment
+
+### Required environment variables
+| Variable | Notes |
+| :--- | :--- |
+| `ENVIRONMENT` | Set to `production`. Enables startup checks and disables `/docs`. |
+| `SECRET_KEY` | At least 32 random characters. The app refuses to start with the dev default. |
+| `DATABASE_URL` | PostgreSQL. `postgres://` and `postgresql://` URLs from Neon or Supabase are converted to asyncpg automatically, and `sslmode=require` becomes `ssl=require`. |
+| `CORS_ORIGINS` | Comma separated exact frontend origins, for example `https://app.example.com`. No wildcard. |
+
+### First deploy
+```bash
+alembic upgrade head
+ADMIN_EMAIL=you@example.com ADMIN_PASSWORD='a-long-password' python create_admin.py
+```
+Do not run `seed.py` in production. Tables are created only by Alembic migrations in production.
+
+### Tenant onboarding
+The admin creates an invite code for a vacant unit with `POST /api/v1/invite-codes`. The tenant registers at `POST /api/v1/auth/register` with that code. Codes are single use and expire after `INVITE_CODE_EXPIRE_DAYS`. Public registration can only ever create tenants.
+
+### Health checks
+`GET /health` for liveness and `GET /health/ready` for readiness (checks the database).
+
+### Tests
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
+
+---
+
+## 🖥️ Frontend
+
+The frontend talks to the real API. Landlords see Overview, Properties, Tenants, Rent and Repairs. Tenants see My home, Rent and Repairs. Tenants join with an invite code at `#/register?code=XXXXXXXX`.
+
+```bash
+npm install
+npm run dev
+```
+The dev server runs on port 3000 and proxies `/api` to `http://localhost:8000`.
+
+| Variable | Notes |
+| :--- | :--- |
+| `VITE_API_URL` | API base. Leave as `/api/v1` when a reverse proxy serves frontend and API on one domain, otherwise use the full URL such as `https://api.example.com/api/v1`. The API's `CORS_ORIGINS` must then include the frontend origin. |
+| `VITE_CURRENCY` | Label shown before amounts. Defaults to `TSh`. |
+
+Build with `npm run build` and serve the `dist` folder from any static host. Routing uses the URL hash, so no server rewrite rules are needed.

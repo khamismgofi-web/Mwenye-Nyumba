@@ -166,7 +166,11 @@ async def delete_property(
     current_user: User = Depends(get_current_admin)
 ) -> None:
     """Delete a property (Admin only). Cascade deletes units."""
-    stmt = select(Property).where(Property.id == property_id)
+    stmt = (
+        select(Property)
+        .where(Property.id == property_id)
+        .options(selectinload(Property.units).selectinload(Unit.tenants))
+    )
     result = await db.execute(stmt)
     prop = result.scalar_one_or_none()
 
@@ -174,6 +178,11 @@ async def delete_property(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Property not found"
+        )
+    if any(u.tenants for u in prop.units):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot delete a property that has tenants. Remove the tenants first"
         )
 
     await db.delete(prop)

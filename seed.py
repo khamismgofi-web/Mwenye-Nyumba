@@ -10,6 +10,7 @@ from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database import AsyncSessionLocal, engine
 from app.core.security import get_password_hash
 from app.models.base import Base
@@ -22,6 +23,8 @@ from app.models.user import User, UserRole
 
 
 async def seed_database():
+    if settings.is_production:
+        raise SystemExit("Refusing to run seed.py with ENVIRONMENT=production: it drops all tables")
     print("🌱 Initializing database schema...")
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)

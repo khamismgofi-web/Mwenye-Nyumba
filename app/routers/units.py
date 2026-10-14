@@ -217,7 +217,7 @@ async def delete_unit(
     current_user: User = Depends(get_current_admin)
 ) -> None:
     """Delete a unit (Admin only)."""
-    stmt = select(Unit).where(Unit.id == unit_id)
+    stmt = select(Unit).where(Unit.id == unit_id).options(selectinload(Unit.tenants))
     result = await db.execute(stmt)
     unit = result.scalar_one_or_none()
 
@@ -225,6 +225,11 @@ async def delete_unit(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Unit not found"
+        )
+    if unit.tenants:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot delete a unit that has a tenant. Remove the tenant first"
         )
 
     await db.delete(unit)

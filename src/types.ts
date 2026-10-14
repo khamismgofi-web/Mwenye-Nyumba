@@ -1,23 +1,18 @@
-export type UserRole = 'admin' | 'tenant';
-
+export type Role = 'admin' | 'tenant';
 export type UnitStatus = 'vacant' | 'occupied' | 'maintenance';
-
 export type PaymentStatus = 'paid' | 'pending' | 'overdue';
-
 export type PaymentMethod = 'mpesa' | 'bank_transfer' | 'cash' | 'credit_card' | 'other';
+export type RepairStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
+export type RepairPriority = 'low' | 'medium' | 'high' | 'urgent';
 
-export type MaintenanceStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
-
-export type MaintenancePriority = 'low' | 'medium' | 'high' | 'urgent';
-
-export interface User {
-  id: number;
+export interface Session {
+  access_token: string;
+  refresh_token: string;
+  user_id: number;
   email: string;
-  role: UserRole;
-  is_active: boolean;
-  created_at: string;
-  tenant_id?: number | null;
-  unit_id?: number | null;
+  role: Role;
+  tenant_id: number | null;
+  unit_id: number | null;
 }
 
 export interface Property {
@@ -58,30 +53,12 @@ export interface Tenant {
   lease_end: string;
   national_id?: string | null;
   email?: string | null;
-  photo_url?: string | null;
-  welcome_email_sent?: boolean;
-  welcome_email_sent_at?: string | null;
   created_at: string;
   unit_number?: string | null;
   property_name?: string | null;
   property_id?: number | null;
   rent_amount?: number | null;
-  balance_due?: number;
-}
-
-export interface WelcomeEmailRecord {
-  id: string;
-  tenant_id: number;
-  tenant_name: string;
-  to_email: string;
-  subject: string;
-  temp_password: string;
-  unit_number: string;
-  property_name: string;
-  rent_amount: number;
-  sent_at: string;
-  status: 'delivered' | 'failed';
-  content_html?: string;
+  balance_due?: number | null;
 }
 
 export interface Payment {
@@ -100,15 +77,15 @@ export interface Payment {
   property_name?: string | null;
 }
 
-export interface MaintenanceRequest {
+export interface Repair {
   id: number;
   tenant_id: number;
   unit_id: number;
   title: string;
   description: string;
-  category: string;
-  priority: MaintenancePriority;
-  status: MaintenanceStatus;
+  category?: string | null;
+  priority: RepairPriority;
+  status: RepairStatus;
   admin_notes?: string | null;
   created_at: string;
   tenant_name?: string | null;
@@ -116,12 +93,13 @@ export interface MaintenanceRequest {
   property_name?: string | null;
 }
 
-export interface AuthState {
-  user: User | null;
-  accessToken: string | null;
-  refreshToken: string | null;
-  isAuthenticated: boolean;
+export interface InviteCode {
+  id: number;
+  code: string;
+  unit_id: number;
+  used: boolean;
+  lease_start: string;
+  lease_end: string;
+  expires_at: string;
+  created_at: string;
 }
-
-export type AdminTab = 'dashboard' | 'properties' | 'units' | 'tenants' | 'payments' | 'maintenance';
-export type TenantTab = 'my-unit' | 'my-payments' | 'my-maintenance';

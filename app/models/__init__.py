@@ -4,6 +4,7 @@ from app.models.property import Property
 from app.models.unit import Unit, UnitStatus
 from app.models.tenant import Tenant
 from app.models.payment import Payment, PaymentStatus, PaymentMethod
+from app.models.invite_code import InviteCode
 from app.models.maintenance import MaintenanceRequest, MaintenanceStatus, MaintenancePriority
 
 __all__ = [
@@ -18,6 +19,7 @@ __all__ = [
     "Payment",
     "PaymentStatus",
     "PaymentMethod",
+    "InviteCode",
     "MaintenanceRequest",
     "MaintenanceStatus",
     "MaintenancePriority",

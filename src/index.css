@@ -1,1 +1,177 @@
+@import url("https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Instrument+Sans:wght@400;500;600&display=swap");
 @import "tailwindcss";
+
+@theme {
+  --font-display: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+  --color-plaster: #f4f6f6;
+  --color-ink: #1b2430;
+  --color-muted: #5b6675;
+  --color-line: #dde2e6;
+  --color-pine: #0f5c4e;
+  --color-pine-tint: #dcebe6;
+  --color-ochre: #c98a2c;
+  --color-ochre-ink: #86560f;
+  --color-ochre-tint: #f6e9d2;
+  --color-brick: #b5432f;
+  --color-brick-tint: #f5ddd7;
+}
+
+html {
+  background: var(--color-plaster);
+}
+
+body {
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-pine);
+  outline-offset: 2px;
+}
+
+.elevation {
+  --wall: var(--color-ink);
+  width: fit-content;
+  max-width: 100%;
+  margin-inline: auto;
+}
+
+.elevation-roof {
+  height: 8px;
+  margin-inline: -10px;
+  background: var(--wall);
+  border-radius: 1px;
+}
+
+.elevation-body {
+  border-inline: 1.5px solid var(--wall);
+  background: #fff;
+}
+
+.elevation-floor {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px 10px;
+  border-bottom: 1.5px solid var(--wall);
+}
+
+.elevation-level {
+  width: 22px;
+  padding-top: 4px;
+  font-size: 11px;
+  color: var(--color-muted);
+}
+
+.elevation-ground {
+  height: 10px;
+  margin-inline: -18px;
+  background: repeating-linear-gradient(135deg, var(--wall) 0 1.5px, transparent 1.5px 7px);
+  border-top: 1.5px solid var(--wall);
+}
+
+.window {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 58px;
+  padding: 0;
+  border: 1.5px solid var(--color-ink);
+  border-radius: 2px;
+  background: #fff;
+  color: var(--color-ink);
+  transition: background-color 0.15s;
+}
+
+.window::before,
+.window::after {
+  content: "";
+  position: absolute;
+  background: currentColor;
+  opacity: 0.22;
+}
+
+.window::before {
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+
+.window::after {
+  left: 0;
+  right: 0;
+  top: 36%;
+  height: 1px;
+}
+
+button.window {
+  cursor: pointer;
+}
+
+button.window:hover {
+  border-color: var(--color-pine);
+}
+
+.window[data-tone="paid"] {
+  background: var(--color-pine-tint);
+}
+
+.window[data-tone="overdue"] {
+  background: repeating-linear-gradient(135deg, var(--color-brick-tint) 0 5px, #fff 5px 9px);
+}
+
+.window[data-tone="repair"] {
+  background: var(--color-ochre-tint);
+}
+
+.window[aria-pressed="true"] {
+  outline: 2px solid var(--color-pine);
+  outline-offset: 3px;
+}
+
+.swatch {
+  display: inline-block;
+  width: 18px;
+  height: 14px;
+  border: 1.5px solid var(--color-ink);
+  border-radius: 2px;
+}
+
+.swatch[data-tone="paid"] {
+  background: var(--color-pine-tint);
+}
+
+.swatch[data-tone="overdue"] {
+  background: repeating-linear-gradient(135deg, var(--color-brick-tint) 0 3px, #fff 3px 6px);
+}
+
+.swatch[data-tone="repair"] {
+  background: var(--color-ochre-tint);
+}
+
+.swatch[data-tone="vacant"] {
+  background: #fff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
