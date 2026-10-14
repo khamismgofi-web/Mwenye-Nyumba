@@ -10,6 +10,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
 from app.core.database import AsyncSessionLocal, engine
+from app.core.ratelimit import login_by_account, login_by_ip, register_by_ip
 from app.core.security import get_password_hash
 from app.main import app
 from app.models import Base, User, UserRole
@@ -20,6 +21,8 @@ ADMIN_PASSWORD = "admin-password-123"
 
 @pytest_asyncio.fixture(autouse=True)
 async def fresh_database():
+    for limiter in (login_by_account, login_by_ip, register_by_ip):
+        limiter.clear()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)

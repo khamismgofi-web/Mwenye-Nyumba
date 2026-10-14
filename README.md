@@ -155,16 +155,24 @@ Open your browser at `http://localhost:3000` (or `http://localhost:5173`).
 | `SECRET_KEY` | At least 32 random characters. The app refuses to start with the dev default. |
 | `DATABASE_URL` | PostgreSQL. `postgres://` and `postgresql://` URLs from Neon or Supabase are converted to asyncpg automatically, and `sslmode=require` becomes `ssl=require`. |
 | `CORS_ORIGINS` | Comma separated exact frontend origins, for example `https://app.example.com`. No wildcard. |
+| `TIMEZONE` | Used to decide when rent becomes overdue. Defaults to `Africa/Dar_es_Salaam`. |
 
 ### First deploy
 ```bash
 alembic upgrade head
 ADMIN_EMAIL=you@example.com ADMIN_PASSWORD='a-long-password' python create_admin.py
 ```
-Do not run `seed.py` in production. Tables are created only by Alembic migrations in production.
+Do not run `seed.py` in production. Tables are created only by Alembic migrations in production. In development the API creates missing tables on startup.
+
+If your database already has tables that were created by an older version of this project (no `alembic_version` table), run `alembic stamp 001_initial_schema` once before `alembic upgrade head`, otherwise Alembic tries to create tables that already exist.
 
 ### Tenant onboarding
 The admin creates an invite code for a vacant unit with `POST /api/v1/invite-codes`. The tenant registers at `POST /api/v1/auth/register` with that code. Codes are single use and expire after `INVITE_CODE_EXPIRE_DAYS`. Public registration can only ever create tenants.
+
+### Built-in protections
+- Pending rent turns overdue automatically after its due date. The check runs at startup and every `OVERDUE_CHECK_HOURS` (default 6).
+- 5 wrong passwords for one account, or 30 from one address, blocks logins for 15 minutes. Invite-code guessing is limited to 10 tries per hour per address. These limits are kept in memory, so run one API process or add limits at your proxy as well.
+- Money is stored as exact `NUMERIC(12,2)` values.
 
 ### Health checks
 `GET /health` for liveness and `GET /health/ready` for readiness (checks the database).

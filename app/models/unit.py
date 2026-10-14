@@ -1,6 +1,7 @@
 import enum
+from decimal import Decimal
 from typing import TYPE_CHECKING, List, Optional
-from sqlalchemy import Enum, Float, ForeignKey, Integer, String
+from sqlalchemy import Enum, ForeignKey, Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin
 
@@ -22,7 +23,7 @@ class Unit(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
     property_id: Mapped[int] = mapped_column(Integer, ForeignKey("properties.id", ondelete="CASCADE"), nullable=False, index=True)
     unit_number: Mapped[str] = mapped_column(String(50), nullable=False)
-    rent_amount: Mapped[float] = mapped_column(Float, nullable=False)
+    rent_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     status: Mapped[UnitStatus] = mapped_column(
         Enum(UnitStatus, name="unit_status", native_enum=False),
         default=UnitStatus.VACANT,

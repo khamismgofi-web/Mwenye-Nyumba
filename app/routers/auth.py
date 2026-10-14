@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 import jwt
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
+from app.core.ratelimit import client_ip, login_by_account, login_by_ip, register_by_ip
 from app.core.security import (
     DUMMY_HASH,
     create_access_token,
@@ -54,7 +55,11 @@ def as_utc(value: datetime) -> datetime:
     return value
 
 
-async def authenticate(db: AsyncSession, email: str, password: str) -> User:
+async def authenticate(db: AsyncSession, request: Request, email: str, password: str) -> User:
+    ip = client_ip(request)
+    account_key = f"{ip}:{email.strip().lower()}"
+    login_by_account.check(account_key)
+    login_by_ip.check(ip)
     stmt = (
         select(User)
         .where(func.lower(User.email) == email.strip().lower())
@@ -63,6 +68,8 @@ async def authenticate(db: AsyncSession, email: str, password: str) -> User:
     user = (await db.execute(stmt)).scalar_one_or_none()
     password_ok = verify_password(password, user.hashed_password if user else DUMMY_HASH)
     if not user or not password_ok:
+        login_by_account.record(account_key)
+        login_by_ip.record(ip)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
@@ -70,32 +77,37 @@ async def authenticate(db: AsyncSession, email: str, password: str) -> User:
         )
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user account")
+    login_by_account.reset(account_key)
     return user
 
 
 @router.post("/login", response_model=Token)
 async def login_access_token(
+    request: Request,
     db: AsyncSession = Depends(get_db),
     form_data: OAuth2PasswordRequestForm = Depends(),
 ) -> Any:
-    user = await authenticate(db, form_data.username, form_data.password)
+    user = await authenticate(db, request, form_data.username, form_data.password)
     return build_token_response(user)
 
 
 @router.post("/login-json", response_model=Token)
-async def login_json(credentials: UserLogin, db: AsyncSession = Depends(get_db)) -> Any:
-    user = await authenticate(db, credentials.email, credentials.password)
+async def login_json(request: Request, credentials: UserLogin, db: AsyncSession = Depends(get_db)) -> Any:
+    user = await authenticate(db, request, credentials.email, credentials.password)
     return build_token_response(user)
 
 
 @router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
-async def register_tenant(data: RegisterRequest, db: AsyncSession = Depends(get_db)) -> Any:
+async def register_tenant(request: Request, data: RegisterRequest, db: AsyncSession = Depends(get_db)) -> Any:
+    ip = client_ip(request)
+    register_by_ip.check(ip)
     email = data.email.strip().lower()
     code = data.invite_code.strip().upper()
 
     invite = (await db.execute(select(InviteCode).where(InviteCode.code == code))).scalar_one_or_none()
     now = datetime.now(timezone.utc)
     if not invite or invite.used or as_utc(invite.expires_at) <= now:
+        register_by_ip.record(ip)
         raise INVALID_CODE
 
     unit = (

@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
@@ -6,6 +7,7 @@ from sqlalchemy import text
 
 from app.core.config import settings
 from app.core.database import engine
+from app.core.jobs import overdue_loop
 from app.models import Base
 from app.routers import (
     auth_router,
@@ -23,7 +25,12 @@ async def lifespan(app: FastAPI):
     if settings.auto_create_tables:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+    task = None
+    if settings.ENVIRONMENT != "test":
+        task = asyncio.create_task(overdue_loop())
     yield
+    if task:
+        task.cancel()
     await engine.dispose()
 
 

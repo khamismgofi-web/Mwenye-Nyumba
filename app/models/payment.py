@@ -1,7 +1,8 @@
 import enum
 from datetime import date
+from decimal import Decimal
 from typing import TYPE_CHECKING, Optional
-from sqlalchemy import Date, Enum, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Date, Enum, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin
 
@@ -28,7 +29,7 @@ class Payment(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
     tenant_id: Mapped[int] = mapped_column(Integer, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
-    amount: Mapped[float] = mapped_column(Float, nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     due_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     paid_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     status: Mapped[PaymentStatus] = mapped_column(

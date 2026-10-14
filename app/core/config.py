@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     INVITE_CODE_EXPIRE_DAYS: int = 7
+    TIMEZONE: str = "Africa/Dar_es_Salaam"
+    OVERDUE_CHECK_HOURS: int = 6
 
     DATABASE_URL: str = "sqlite+aiosqlite:///./mwenyenyumba.db"
 
@@ -79,7 +81,7 @@ class Settings(BaseSettings):
 
     @property
     def auto_create_tables(self) -> bool:
-        return not self.is_production and self.DATABASE_URL.startswith("sqlite")
+        return not self.is_production
 
     model_config = SettingsConfigDict(
         env_file=".env",
