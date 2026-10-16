@@ -1,4 +1,5 @@
 from typing import Any, List, Optional
+from pydantic import BaseModel, Field
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -6,6 +7,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_admin, get_current_user
+from app.core.scope import owned_property_ids, owned_tenant_ids, owned_unit_ids
 from app.core.security import get_password_hash
 from app.models.payment import Payment, PaymentStatus
 from app.models.tenant import Tenant
@@ -46,6 +48,7 @@ async def list_tenants(
             selectinload(Tenant.unit).selectinload(Unit.property),
             selectinload(Tenant.payments),
         )
+        stmt = stmt.where(Tenant.unit_id.in_(owned_unit_ids(current_user)))
         if unit_id is not None:
             stmt = stmt.where(Tenant.unit_id == unit_id)
 
@@ -112,7 +115,7 @@ async def create_tenant(
     # 2. Check if unit exists and is available
     unit_stmt = (
         select(Unit)
-        .where(Unit.id == tenant_in.unit_id)
+        .where(Unit.id == tenant_in.unit_id, Unit.property_id.in_(owned_property_ids(current_user)))
         .options(selectinload(Unit.property), selectinload(Unit.tenants))
     )
     unit_res = await db.execute(unit_stmt)
@@ -247,6 +250,8 @@ async def get_tenant(
             selectinload(Tenant.payments),
         )
     )
+    if current_user.role == UserRole.ADMIN:
+        stmt = stmt.where(Tenant.id.in_(owned_tenant_ids(current_user)))
     result = await db.execute(stmt)
     t = result.scalar_one_or_none()
 
@@ -289,7 +294,7 @@ async def update_tenant(
     """Update tenant info or unit reassignment (Admin only)."""
     stmt = (
         select(Tenant)
-        .where(Tenant.id == tenant_id)
+        .where(Tenant.id == tenant_id, Tenant.id.in_(owned_tenant_ids(current_user)))
         .options(
             selectinload(Tenant.user),
             selectinload(Tenant.unit).selectinload(Unit.property),
@@ -367,7 +372,7 @@ async def delete_tenant(
     """Delete tenant, free up unit, and remove user account (Admin only)."""
     stmt = (
         select(Tenant)
-        .where(Tenant.id == tenant_id)
+        .where(Tenant.id == tenant_id, Tenant.id.in_(owned_tenant_ids(current_user)))
         .options(selectinload(Tenant.unit), selectinload(Tenant.user))
     )
     result = await db.execute(stmt)
@@ -389,4 +394,27 @@ async def delete_tenant(
     else:
         await db.delete(t)
 
+    await db.commit()
+
+
+class PasswordReset(BaseModel):
+    password: str = Field(..., min_length=8, max_length=72)
+
+
+@router.put("/{tenant_id}/password", status_code=status.HTTP_204_NO_CONTENT)
+async def reset_tenant_password(
+    tenant_id: int,
+    data: PasswordReset,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_admin),
+) -> None:
+    stmt = (
+        select(Tenant)
+        .where(Tenant.id == tenant_id, Tenant.id.in_(owned_tenant_ids(current_user)))
+        .options(selectinload(Tenant.user))
+    )
+    t = (await db.execute(stmt)).scalar_one_or_none()
+    if not t:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
+    t.user.hashed_password = get_password_hash(data.password)
     await db.commit()

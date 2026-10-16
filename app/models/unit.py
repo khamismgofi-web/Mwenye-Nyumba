@@ -32,6 +32,7 @@ class Unit(Base, TimestampMixin):
     floor: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     bedrooms: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=1)
     bathrooms: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=1)
+    photo_key: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
     # Relationships
     property: Mapped["Property"] = relationship("Property", back_populates="units")

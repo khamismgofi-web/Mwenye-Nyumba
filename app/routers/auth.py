@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
 from typing import Any, Optional
 
+import secrets
+
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -10,8 +12,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user
-from app.core.ratelimit import client_ip, login_by_account, login_by_ip, register_by_ip
+from app.core.config import settings
+from app.core.dependencies import get_current_admin, get_current_user
+from app.core.ratelimit import client_ip, landlord_signup_by_ip, login_by_account, login_by_ip, register_by_ip
 from app.core.security import (
     DUMMY_HASH,
     create_access_token,
@@ -24,7 +27,7 @@ from app.models.invite_code import InviteCode
 from app.models.tenant import Tenant
 from app.models.unit import Unit, UnitStatus
 from app.models.user import User, UserRole
-from app.schemas.auth import RegisterRequest
+from app.schemas.auth import AuthConfig, ChangePasswordRequest, LandlordRegisterRequest, ProfileUpdate, RegisterRequest
 from app.schemas.token import RefreshTokenRequest, Token, TokenPayload
 from app.schemas.user import UserLogin, UserResponse
 
@@ -188,9 +191,94 @@ async def read_current_user(current_user: User = Depends(get_current_user)) -> A
     return {
         "id": current_user.id,
         "email": current_user.email,
+        "full_name": current_user.full_name,
+        "phone": current_user.phone,
         "role": current_user.role,
         "is_active": current_user.is_active,
         "created_at": current_user.created_at,
         "tenant_id": current_user.tenant.id if current_user.tenant else None,
         "unit_id": current_user.tenant.unit_id if current_user.tenant else None,
     }
+
+
+@router.get("/config", response_model=AuthConfig)
+async def public_config() -> Any:
+    return AuthConfig(
+        landlord_signup_enabled=settings.landlord_signup_enabled,
+        email_alerts=settings.email_enabled,
+        sms_alerts=settings.sms_enabled,
+        photos=settings.storage_enabled,
+    )
+
+
+@router.post("/register-landlord", response_model=Token, status_code=status.HTTP_201_CREATED)
+async def register_landlord(request: Request, data: LandlordRegisterRequest, db: AsyncSession = Depends(get_db)) -> Any:
+    if not settings.landlord_signup_enabled:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+    ip = client_ip(request)
+    landlord_signup_by_ip.check(ip)
+    if not secrets.compare_digest(data.signup_code.encode(), settings.LANDLORD_SIGNUP_CODE.encode()):
+        landlord_signup_by_ip.record(ip)
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="That sign-up code is not valid")
+
+    email = data.email.strip().lower()
+    existing = (await db.execute(select(User.id).where(func.lower(User.email) == email))).scalar_one_or_none()
+    if existing:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="An account with this email already exists")
+
+    user = User(
+        email=email,
+        hashed_password=get_password_hash(data.password),
+        role=UserRole.ADMIN,
+        is_active=True,
+        full_name=data.full_name,
+        phone=data.phone.strip(),
+    )
+    db.add(user)
+    try:
+        await db.flush()
+    except IntegrityError:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="An account with this email already exists")
+    user = (
+        await db.execute(select(User).where(User.id == user.id).options(selectinload(User.tenant)))
+    ).scalar_one()
+    return build_token_response(user)
+
+
+@router.put("/me", response_model=UserResponse)
+async def update_profile(
+    data: ProfileUpdate,
+    db: AsyncSession = Depends(get_db),
+    landlord: User = Depends(get_current_admin),
+) -> Any:
+    landlord.full_name = data.full_name.strip()
+    landlord.phone = data.phone.strip()
+    await db.commit()
+    return {
+        "id": landlord.id,
+        "email": landlord.email,
+        "full_name": landlord.full_name,
+        "phone": landlord.phone,
+        "role": landlord.role,
+        "is_active": landlord.is_active,
+        "created_at": landlord.created_at,
+        "tenant_id": None,
+        "unit_id": None,
+    }
+
+
+@router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)
+async def change_password(
+    request: Request,
+    data: ChangePasswordRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    key = f"pw:{client_ip(request)}:{current_user.id}"
+    login_by_account.check(key)
+    if not verify_password(data.current_password, current_user.hashed_password):
+        login_by_account.record(key)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Your current password is not correct")
+    current_user.hashed_password = get_password_hash(data.new_password)
+    await db.commit()
+    login_by_account.reset(key)

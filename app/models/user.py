@@ -25,6 +25,8 @@ class User(Base, TimestampMixin):
         nullable=False
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    full_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    phone: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
 
     # Relationships
     tenant: Mapped[Optional["Tenant"]] = relationship("Tenant", back_populates="user", uselist=False, cascade="all, delete-orphan")

@@ -75,12 +75,41 @@ function AddTenant({ onClose }: { onClose: () => void }) {
   );
 }
 
+function ResetPassword({ tenant, onClose }: { tenant: { id: number; name: string }; onClose: () => void }) {
+  const { busy, run } = useAction();
+  const toast = useToast();
+  const [password, setPassword] = useState(randomPassword());
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    const ok = await run(() => api.resetTenantPassword(tenant.id, password));
+    if (ok) {
+      await copyText(password);
+      toast(`Password changed. It was copied, so you can paste it to ${tenant.name}.`);
+      onClose();
+    }
+  };
+  return (
+    <Modal title={`New password for ${tenant.name}`} onClose={onClose}>
+      <form onSubmit={submit} className="space-y-4">
+        <p className="text-sm text-muted">Use this if the tenant forgot their password. Give them the new one and ask them to change it after signing in.</p>
+        <Field label="New password">
+          <input className={inputCls} value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} maxLength={72} />
+        </Field>
+        <Button type="submit" busy={busy} className="w-full">
+          Set password and copy it
+        </Button>
+      </form>
+    </Modal>
+  );
+}
+
 export default function Tenants() {
   const { tenants, invites, units, loading, error, reload } = useData();
   const { busy, run } = useAction();
   const toast = useToast();
   const [query, setQuery] = useState('');
   const [adding, setAdding] = useState(false);
+  const [resetting, setResetting] = useState<{ id: number; name: string } | null>(null);
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -117,7 +146,7 @@ export default function Tenants() {
       {pending.length > 0 && (
         <section className="mb-10">
           <h2 className="mb-3 text-xl font-bold">Waiting to register</h2>
-          <ul className="divide-y divide-line rounded-lg border border-line bg-white">
+          <ul className="divide-y divide-line rounded-2xl border border-line bg-white shadow-sm">
             {pending.map((i) => {
               const unit = units.find((u) => u.id === i.unit_id);
               return (
@@ -157,7 +186,7 @@ export default function Tenants() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-          <div className="overflow-x-auto rounded-lg border border-line bg-white">
+          <div className="overflow-x-auto rounded-2xl border border-line bg-white shadow-sm">
             <table className="w-full min-w-[720px] text-left text-sm">
               <thead className="border-b border-line text-muted">
                 <tr>
@@ -193,6 +222,9 @@ export default function Tenants() {
                         {money(t.balance_due)}
                       </td>
                       <td className="px-4 py-3 text-right">
+                        <Button variant="ghost" onClick={() => setResetting({ id: t.id, name: t.name })}>
+                          Reset password
+                        </Button>
                         <Button variant="ghost" onClick={() => remove(t.id, t.name)}>
                           Remove
                         </Button>
@@ -208,6 +240,7 @@ export default function Tenants() {
       )}
 
       {adding && <AddTenant onClose={() => setAdding(false)} />}
+      {resetting && <ResetPassword tenant={resetting} onClose={() => setResetting(null)} />}
     </>
   );
 }

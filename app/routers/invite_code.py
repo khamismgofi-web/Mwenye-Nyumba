@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.dependencies import get_current_admin
+from app.core.scope import owned_property_ids, owned_unit_ids
 from app.models.invite_code import InviteCode
 from app.models.unit import Unit, UnitStatus
 from app.models.user import User
@@ -37,7 +38,11 @@ async def create_invite_code(
     admin: User = Depends(get_current_admin),
 ) -> Any:
     unit = (
-        await db.execute(select(Unit).where(Unit.id == payload.unit_id).options(selectinload(Unit.tenants)))
+        await db.execute(
+            select(Unit)
+            .where(Unit.id == payload.unit_id, Unit.property_id.in_(owned_property_ids(admin)))
+            .options(selectinload(Unit.tenants))
+        )
     ).scalar_one_or_none()
     if not unit:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unit not found")
@@ -69,7 +74,11 @@ async def list_invite_codes(
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(get_current_admin),
 ) -> Any:
-    stmt = select(InviteCode).order_by(desc(InviteCode.created_at))
+    stmt = (
+        select(InviteCode)
+        .where(InviteCode.unit_id.in_(owned_unit_ids(admin)))
+        .order_by(desc(InviteCode.created_at))
+    )
     if unit_id is not None:
         stmt = stmt.where(InviteCode.unit_id == unit_id)
     return (await db.execute(stmt)).scalars().all()
@@ -81,7 +90,11 @@ async def revoke_invite_code(
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(get_current_admin),
 ) -> None:
-    invite = await db.get(InviteCode, invite_id)
+    invite = (
+        await db.execute(
+            select(InviteCode).where(InviteCode.id == invite_id, InviteCode.unit_id.in_(owned_unit_ids(admin)))
+        )
+    ).scalar_one_or_none()
     if not invite:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invite code not found")
     if invite.used:

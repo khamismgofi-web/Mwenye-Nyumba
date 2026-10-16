@@ -10,7 +10,7 @@ from app.core.security import MAX_PASSWORD_BYTES, get_password_hash
 from app.models import User, UserRole
 
 
-async def create_admin(email: str, password: str) -> None:
+async def create_landlord(email: str, password: str, full_name: str, phone: str) -> None:
     async with AsyncSessionLocal() as session:
         existing = (
             await session.execute(select(User.id).where(func.lower(User.email) == email.lower()))
@@ -23,21 +23,27 @@ async def create_admin(email: str, password: str) -> None:
                 hashed_password=get_password_hash(password),
                 role=UserRole.ADMIN,
                 is_active=True,
+                full_name=full_name,
+                phone=phone,
             )
         )
         await session.commit()
     await engine.dispose()
-    print(f"Admin account created for {email}")
+    print(f"Landlord account created for {email}")
 
 
 def main() -> None:
-    email = os.environ.get("ADMIN_EMAIL") or (sys.argv[1] if len(sys.argv) > 1 else input("Admin email: ").strip())
-    password = os.environ.get("ADMIN_PASSWORD") or getpass.getpass("Admin password: ")
+    email = os.environ.get("ADMIN_EMAIL") or (sys.argv[1] if len(sys.argv) > 1 else input("Landlord email: ").strip())
+    full_name = os.environ.get("ADMIN_NAME") or input("Full name: ").strip()
+    phone = os.environ.get("ADMIN_PHONE") or input("Phone with country code, for SMS alerts (for example +255712345678): ").strip()
+    password = os.environ.get("ADMIN_PASSWORD") or getpass.getpass("Password: ")
     if len(password) < 12:
-        raise SystemExit("Use a password of at least 12 characters for an admin account")
+        raise SystemExit("Use a password of at least 12 characters")
     if len(password.encode("utf-8")) > MAX_PASSWORD_BYTES:
         raise SystemExit("Password must be at most 72 bytes")
-    asyncio.run(create_admin(email, password))
+    if not phone.startswith("+"):
+        raise SystemExit("The phone number must start with + and the country code")
+    asyncio.run(create_landlord(email, password, full_name, phone))
 
 
 if __name__ == "__main__":

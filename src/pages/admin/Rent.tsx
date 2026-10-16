@@ -159,7 +159,7 @@ export default function Rent() {
       />
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div role="tablist" aria-label="Filter rent" className="flex gap-1 rounded-lg border border-line bg-white p-1">
+        <div role="tablist" aria-label="Filter rent" className="flex gap-1 rounded-2xl border border-line bg-white shadow-sm p-1">
           {filters.map(([key, label]) => (
             <button
               key={key}
@@ -180,7 +180,7 @@ export default function Rent() {
       {rows.length === 0 ? (
         <Empty title="Nothing to show">{filter === 'all' ? 'Add a rent charge to start tracking payments.' : 'No payments match this filter.'}</Empty>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-line bg-white">
+        <div className="overflow-x-auto rounded-2xl border border-line bg-white shadow-sm">
           <table className="w-full min-w-[720px] text-left text-sm">
             <thead className="border-b border-line text-muted">
               <tr>

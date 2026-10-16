@@ -6,6 +6,7 @@ interface AuthValue {
   session: Session | null;
   login: (email: string, password: string) => Promise<Session>;
   register: (body: { email: string; password: string; full_name: string; phone: string; invite_code: string }) => Promise<Session>;
+  registerLandlord: (body: { email: string; password: string; full_name: string; phone: string; signup_code: string }) => Promise<Session>;
   logout: () => void;
 }
 
@@ -31,6 +32,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     session,
     login: async (email, password) => start(await api.login(email, password)),
     register: async (body) => start(await api.register(body)),
+    registerLandlord: async (body) => start(await api.registerLandlord(body)),
     logout: () => {
       saveSession(null);
       setSession(null);

@@ -11,6 +11,7 @@ from app.core.jobs import overdue_loop
 from app.models import Base
 from app.routers import (
     auth_router,
+    entries_router,
     invite_code_router,
     maintenance_router,
     payments_router,
@@ -54,6 +55,7 @@ app.add_middleware(
 
 app.include_router(auth_router, prefix=settings.API_V1_STR)
 app.include_router(invite_code_router, prefix=settings.API_V1_STR)
+app.include_router(entries_router, prefix=settings.API_V1_STR)
 app.include_router(properties_router, prefix=settings.API_V1_STR)
 app.include_router(units_router, prefix=settings.API_V1_STR)
 app.include_router(tenants_router, prefix=settings.API_V1_STR)

@@ -1,12 +1,14 @@
 import type React from 'react';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { Home, Plus, Wallet, Wrench } from 'lucide-react';
+import { Home, Plus, UserRound, Wallet, Wrench } from 'lucide-react';
 import { Shell, NavItem } from '../../components/Shell';
+import { UnitTile } from '../../components/UnitTile';
 import { Button, Empty, Field, Modal, PageHead, Pill, Spinner, inputCls, useAction } from '../../components/ui';
 import { effectiveStatus } from '../../lib/derive';
 import { api } from '../../lib/api';
 import { daysUntil, methodLabel, money, shortDate, toDate, todayIso } from '../../lib/format';
 import { Link } from '../../lib/router';
+import { ChangePasswordForm } from '../AccountForm';
 import type { Payment, Repair, Tenant, Unit } from '../../types';
 import { priorityTone, statusLabel } from '../admin/Repairs';
 
@@ -14,6 +16,7 @@ const items: NavItem[] = [
   { key: 'home', label: 'My home', to: '/home', icon: <Home size={18} /> },
   { key: 'rent', label: 'Rent', to: '/rent', icon: <Wallet size={18} /> },
   { key: 'repairs', label: 'Repairs', to: '/repairs', icon: <Wrench size={18} /> },
+  { key: 'account', label: 'Account', to: '/account', icon: <UserRound size={18} /> },
 ];
 
 interface Data {
@@ -34,6 +37,7 @@ function ReportRepair({ onClose, onDone }: { onClose: () => void; onDone: () => 
   return (
     <Modal title="Report a problem" onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
+        <p className="rounded-lg bg-pine-tint p-3 text-sm text-pine">Your landlord is sent your message by SMS or email as soon as you press send. You do not need to call or use WhatsApp.</p>
         <Field label="What is wrong?">
           <input className={inputCls} value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} required autoFocus placeholder="For example: Kitchen tap is leaking" />
         </Field>
@@ -69,7 +73,7 @@ export default function TenantApp({ path }: { path: string }) {
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState('');
   const [reporting, setReporting] = useState(false);
-  const tab = ['home', 'rent', 'repairs'].includes(path.slice(1)) ? path.slice(1) : 'home';
+  const tab = ['home', 'rent', 'repairs', 'account'].includes(path.slice(1)) ? path.slice(1) : 'home';
 
   const load = useCallback(async () => {
     try {
@@ -103,8 +107,13 @@ export default function TenantApp({ path }: { path: string }) {
       body = (
         <>
           <PageHead title={`Hello, ${tenant.name.split(' ')[0]}`} sub={`${tenant.property_name}, unit ${tenant.unit_number}`} />
+          {unit?.photo_url && (
+            <div className="mb-6 max-w-2xl">
+              <UnitTile unit={unit} tone="paid" />
+            </div>
+          )}
           <div className="grid gap-6 md:grid-cols-2">
-            <section className="rounded-lg border border-line bg-white p-6">
+            <section className="rounded-2xl border border-line bg-white shadow-sm p-6">
               <p className="text-sm text-muted">{owed > 0 ? 'You owe' : 'Rent status'}</p>
               <p className={`tabular font-display text-4xl font-bold ${late.length ? 'text-brick' : owed > 0 ? 'text-ink' : 'text-pine'}`}>
                 {owed > 0 ? money(owed) : 'Paid up'}
@@ -123,7 +132,7 @@ export default function TenantApp({ path }: { path: string }) {
               </Link>
             </section>
 
-            <section className="rounded-lg border border-line bg-white p-6">
+            <section className="rounded-2xl border border-line bg-white shadow-sm p-6">
               <p className="text-sm text-muted">Your lease</p>
               <p className="font-display text-2xl font-bold">
                 {left < 0 ? 'Lease has ended' : left === 0 ? 'Ends today' : `${left} days left`}
@@ -136,7 +145,7 @@ export default function TenantApp({ path }: { path: string }) {
               </p>
             </section>
 
-            <section className="rounded-lg border border-line bg-white p-6 md:col-span-2">
+            <section className="rounded-2xl border border-line bg-white shadow-sm p-6 md:col-span-2">
               <div className="flex items-center justify-between gap-3">
                 <h2 className="text-lg font-bold">Repairs</h2>
                 <Button variant="quiet" onClick={() => setReporting(true)}>
@@ -162,6 +171,16 @@ export default function TenantApp({ path }: { path: string }) {
           </div>
         </>
       );
+    } else if (tab === 'account') {
+      body = (
+        <>
+          <PageHead title="Account" sub={tenant.email || undefined} />
+          <section className="rounded-2xl border border-line bg-white p-6 shadow-sm">
+            <h2 className="mb-4 text-xl font-bold">Change password</h2>
+            <ChangePasswordForm />
+          </section>
+        </>
+      );
     } else if (tab === 'rent') {
       body = (
         <>
@@ -169,7 +188,7 @@ export default function TenantApp({ path }: { path: string }) {
           {eff.length === 0 ? (
             <Empty title="No payments yet">Charges and payments will appear here.</Empty>
           ) : (
-            <div className="overflow-x-auto rounded-lg border border-line bg-white">
+            <div className="overflow-x-auto rounded-2xl border border-line bg-white shadow-sm">
               <table className="w-full min-w-[480px] text-left text-sm">
                 <thead className="border-b border-line text-muted">
                   <tr>
@@ -220,7 +239,7 @@ export default function TenantApp({ path }: { path: string }) {
               {[...repairs]
                 .sort((a, b) => b.created_at.localeCompare(a.created_at))
                 .map((r) => (
-                  <li key={r.id} className="rounded-lg border border-line bg-white p-5">
+                  <li key={r.id} className="rounded-2xl border border-line bg-white shadow-sm p-5">
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <p className="font-medium">{r.title}</p>
                       <div className="flex gap-2">

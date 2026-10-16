@@ -12,6 +12,7 @@ function Routes() {
 
   if (!session) {
     if (path === '/login') return <AuthPage mode="login" />;
+    if (path === '/landlord') return <AuthPage mode="landlord" />;
     if (path === '/register') return <AuthPage mode="register" code={params.get('code') || ''} />;
     return <Landing />;
   }

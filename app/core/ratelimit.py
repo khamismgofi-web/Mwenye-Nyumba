@@ -43,6 +43,7 @@ class FailureLimiter:
 login_by_account = FailureLimiter(limit=5, window_seconds=900)
 login_by_ip = FailureLimiter(limit=30, window_seconds=900)
 register_by_ip = FailureLimiter(limit=10, window_seconds=3600)
+landlord_signup_by_ip = FailureLimiter(limit=5, window_seconds=3600)
 
 
 def client_ip(request: Request) -> str:

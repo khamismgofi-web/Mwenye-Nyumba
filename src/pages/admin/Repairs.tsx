@@ -91,7 +91,7 @@ export default function Repairs() {
                       <button
                         type="button"
                         onClick={() => setEditing(r)}
-                        className="w-full rounded-lg border border-line bg-white p-4 text-left transition-colors hover:border-pine"
+                        className="w-full rounded-2xl border border-line bg-white shadow-sm p-4 text-left transition-colors hover:border-pine"
                       >
                         <div className="flex items-start justify-between gap-2">
                           <p className="font-medium">{r.title}</p>

@@ -7,6 +7,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_admin, get_current_user
+from app.core.scope import owned_tenant_ids
 from app.models.payment import Payment, PaymentMethod, PaymentStatus
 from app.models.tenant import Tenant
 from app.models.unit import Unit
@@ -37,6 +38,7 @@ async def list_payments(
             return []
         stmt = stmt.where(Payment.tenant_id == current_user.tenant.id)
     else:
+        stmt = stmt.where(Payment.tenant_id.in_(owned_tenant_ids(current_user)))
         if tenant_id is not None:
             stmt = stmt.where(Payment.tenant_id == tenant_id)
         if status_filter is not None:
@@ -85,7 +87,7 @@ async def create_payment(
     # Verify tenant exists
     tenant_stmt = (
         select(Tenant)
-        .where(Tenant.id == payment_in.tenant_id)
+        .where(Tenant.id == payment_in.tenant_id, Tenant.id.in_(owned_tenant_ids(current_user)))
         .options(selectinload(Tenant.unit).selectinload(Unit.property))
     )
     res = await db.execute(tenant_stmt)
@@ -145,6 +147,8 @@ async def get_payment(
             selectinload(Payment.tenant).selectinload(Tenant.unit).selectinload(Unit.property)
         )
     )
+    if current_user.role == UserRole.ADMIN:
+        stmt = stmt.where(Payment.tenant_id.in_(owned_tenant_ids(current_user)))
     result = await db.execute(stmt)
     p = result.scalar_one_or_none()
 
@@ -197,7 +201,7 @@ async def update_payment(
     """Update payment status or details (Admin only, e.g. mark paid)."""
     stmt = (
         select(Payment)
-        .where(Payment.id == payment_id)
+        .where(Payment.id == payment_id, Payment.tenant_id.in_(owned_tenant_ids(current_user)))
         .options(
             selectinload(Payment.tenant).selectinload(Tenant.unit).selectinload(Unit.property)
         )
@@ -250,7 +254,7 @@ async def delete_payment(
     current_user: User = Depends(get_current_admin)
 ) -> None:
     """Delete a payment record (Admin only)."""
-    stmt = select(Payment).where(Payment.id == payment_id)
+    stmt = select(Payment).where(Payment.id == payment_id, Payment.tenant_id.in_(owned_tenant_ids(current_user)))
     result = await db.execute(stmt)
     p = result.scalar_one_or_none()
 

@@ -41,6 +41,7 @@ export interface Unit {
   property_name?: string | null;
   current_tenant_name?: string | null;
   current_tenant_id?: number | null;
+  photo_url?: string | null;
 }
 
 export interface Tenant {
@@ -102,4 +103,36 @@ export interface InviteCode {
   lease_end: string;
   expires_at: string;
   created_at: string;
+}
+
+export type EntryKind = 'note' | 'plan' | 'expense';
+
+export interface Entry {
+  id: number;
+  property_id: number;
+  unit_id?: number | null;
+  kind: EntryKind;
+  title: string;
+  body?: string | null;
+  amount?: number | null;
+  category?: string | null;
+  entry_date: string;
+  target_date?: string | null;
+  done: boolean;
+  created_at: string;
+}
+
+export interface Profile {
+  id: number;
+  email: string;
+  full_name?: string | null;
+  phone?: string | null;
+  role: Role;
+}
+
+export interface AuthConfig {
+  landlord_signup_enabled: boolean;
+  email_alerts: boolean;
+  sms_alerts: boolean;
+  photos: boolean;
 }

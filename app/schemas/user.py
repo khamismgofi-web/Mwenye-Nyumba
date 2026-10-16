@@ -23,6 +23,8 @@ class UserUpdate(BaseModel):
 
 class UserResponse(UserBase):
     id: int
+    full_name: Optional[str] = None
+    phone: Optional[str] = None
     created_at: datetime
     tenant_id: Optional[int] = None
     unit_id: Optional[int] = None

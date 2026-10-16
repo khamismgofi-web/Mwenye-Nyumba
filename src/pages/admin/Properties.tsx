@@ -1,7 +1,9 @@
 import type React from 'react';
 import { FormEvent, useState } from 'react';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
-import { Elevation, ElevationLegend } from '../../components/Elevation';
+import { EntryModal, EntryRow, totals } from '../../components/Notebook';
+import { PhotoCapture } from '../../components/PhotoCapture';
+import { UnitTile } from '../../components/UnitTile';
 import { Button, Empty, Field, Modal, PageHead, Pill, Spinner, inputCls, useAction, useToast } from '../../components/ui';
 import { toneLabel, unitTone } from '../../lib/derive';
 import { api } from '../../lib/api';
@@ -194,13 +196,14 @@ function InviteModal({ unit, onClose }: { unit: Unit; onClose: () => void }) {
 }
 
 export default function Properties() {
-  const { properties, units, payments, tenants, invites, loading, error, reload } = useData();
+  const { properties, units, payments, tenants, invites, entries, loading, error, reload } = useData();
   const { busy, run } = useAction();
   const [selected, setSelected] = useState<number | null>(null);
   const [modal, setModal] = useState<
     | { kind: 'property'; property?: Property }
     | { kind: 'unit'; propertyId: number; unit?: Unit }
     | { kind: 'invite'; unit: Unit }
+    | { kind: 'entry'; propertyId: number; unitId: number }
     | null
   >(null);
 
@@ -217,7 +220,7 @@ export default function Properties() {
     <>
       <PageHead
         title="Properties"
-        sub="Select a window to see the unit."
+        sub="Tap a unit to see its photo, tenant and notebook."
         action={
           <Button onClick={() => setModal({ kind: 'property' })}>
             <Plus size={16} />
@@ -265,23 +268,18 @@ export default function Properties() {
               {list.length === 0 ? (
                 <Empty title="No units in this property" action={<Button onClick={() => setModal({ kind: 'unit', propertyId: p.id })}>Add the first unit</Button>} />
               ) : (
-                <div className="grid gap-6 lg:grid-cols-[1.3fr_1fr]">
-                  <div className="rounded-lg border border-line bg-white py-6">
-                    <Elevation
-                      units={list.map((u) => ({ id: u.id, label: u.unit_number, floor: u.floor ?? 0, tone: unitTone(u, payments) }))}
-                      selectedId={selected}
-                      onSelect={setSelected}
-                    />
-                    <div className="mt-5">
-                      <ElevationLegend />
-                    </div>
+                <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
+                  <div className="grid grid-cols-2 content-start gap-3 sm:grid-cols-3">
+                    {list.map((u) => (
+                      <UnitTile key={u.id} unit={u} tone={unitTone(u, payments)} selected={selected === u.id} onSelect={() => setSelected(u.id)} />
+                    ))}
                   </div>
 
-                  <div className="rounded-lg border border-line bg-white p-5">
+                  <div className="rounded-2xl border border-line bg-white p-5 shadow-sm">
                     {!unit ? (
-                      <p className="text-sm text-muted">Choose a unit to see its tenant, rent and actions.</p>
+                      <p className="text-sm text-muted">Choose a unit to see its tenant, photo, rent and notebook.</p>
                     ) : (
-                      <div className="space-y-4">
+                      <div className="space-y-5">
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <h3 className="text-xl font-bold">Unit {unit.unit_number}</h3>
@@ -299,8 +297,10 @@ export default function Properties() {
                           {money(unit.rent_amount)} <span className="text-sm font-normal text-muted">per month</span>
                         </p>
 
+                        <PhotoCapture unit={unit} onChanged={reload} />
+
                         {tenant ? (
-                          <div className="rounded-md bg-plaster p-3 text-sm">
+                          <div className="rounded-lg bg-plaster p-3 text-sm">
                             <p className="font-medium">{tenant.name}</p>
                             <p className="text-muted">{tenant.contact_info}</p>
                             <p className="text-muted">Lease until {shortDate(tenant.lease_end)}</p>
@@ -309,7 +309,7 @@ export default function Properties() {
                             </Link>
                           </div>
                         ) : unit.status === 'vacant' ? (
-                          <div className="rounded-md bg-plaster p-3 text-sm">
+                          <div className="rounded-lg bg-plaster p-3 text-sm">
                             {openInvite ? (
                               <p className="text-muted">
                                 Invite code <span className="font-medium text-ink">{openInvite.code}</span> is waiting for a tenant until {shortDate(openInvite.expires_at)}.
@@ -323,15 +323,39 @@ export default function Properties() {
                           </div>
                         ) : null}
 
+                        <div className="border-t border-line pt-4">
+                          <div className="mb-2 flex items-center justify-between gap-2">
+                            <h4 className="font-display text-lg font-bold">Notebook</h4>
+                            <Button variant="quiet" onClick={() => setModal({ kind: 'entry', propertyId: p.id, unitId: unit.id })}>
+                              <Plus size={16} />
+                              Add
+                            </Button>
+                          </div>
+                          {(() => {
+                            const mine = entries.filter((e) => e.unit_id === unit.id);
+                            const t = totals(mine);
+                            return mine.length === 0 ? (
+                              <p className="text-sm text-muted">Plans, budgets and expenses for this unit go here.</p>
+                            ) : (
+                              <>
+                                <p className="tabular mb-1 text-sm text-muted">
+                                  Planned {money(t.plannedOpen)}, spent {money(t.spent)}
+                                </p>
+                                <ul className="divide-y divide-line">
+                                  {mine.map((e) => (
+                                    <EntryRow key={e.id} entry={e} reload={reload} />
+                                  ))}
+                                </ul>
+                              </>
+                            );
+                          })()}
+                        </div>
+
                         <div className="flex gap-2 border-t border-line pt-4">
                           <Button variant="quiet" onClick={() => setModal({ kind: 'unit', propertyId: p.id, unit })}>
                             Edit unit
                           </Button>
-                          <Button
-                            variant="danger"
-                            busy={busy}
-                            onClick={() => remove(`unit ${unit.unit_number}`, () => api.deleteUnit(unit.id))}
-                          >
+                          <Button variant="danger" busy={busy} onClick={() => remove(`unit ${unit.unit_number}`, () => api.deleteUnit(unit.id))}>
                             Delete
                           </Button>
                         </div>
@@ -348,6 +372,7 @@ export default function Properties() {
       {modal?.kind === 'property' && <PropertyForm property={modal.property} onClose={() => setModal(null)} />}
       {modal?.kind === 'unit' && <UnitForm propertyId={modal.propertyId} unit={modal.unit} onClose={() => setModal(null)} />}
       {modal?.kind === 'invite' && <InviteModal unit={modal.unit} onClose={() => setModal(null)} />}
+      {modal?.kind === 'entry' && <EntryModal kind="plan" propertyId={modal.propertyId} unitId={modal.unitId} onClose={() => setModal(null)} onSaved={reload} />}
     </>
   );
 }

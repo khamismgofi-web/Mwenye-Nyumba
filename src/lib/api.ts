@@ -1,5 +1,9 @@
 import type {
+  AuthConfig,
+  Entry,
+  EntryKind,
   InviteCode,
+  Profile,
   Payment,
   Property,
   Repair,
@@ -78,7 +82,8 @@ interface Init {
 
 async function request<T>(path: string, init: Init = {}, retried = false): Promise<T> {
   const headers: Record<string, string> = {};
-  if (init.body !== undefined) headers['Content-Type'] = 'application/json';
+  const isForm = typeof FormData !== 'undefined' && init.body instanceof FormData;
+  if (init.body !== undefined && !isForm) headers['Content-Type'] = 'application/json';
   const session = loadSession();
   if (init.auth !== false && session) headers.Authorization = `Bearer ${session.access_token}`;
 
@@ -87,7 +92,7 @@ async function request<T>(path: string, init: Init = {}, retried = false): Promi
     res = await fetch(`${BASE}${path}`, {
       method: init.method || 'GET',
       headers,
-      body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
+      body: init.body === undefined ? undefined : isForm ? (init.body as FormData) : JSON.stringify(init.body),
     });
   } catch {
     throw new ApiError(0, 'Cannot reach the server. Check your connection and try again.');
@@ -117,6 +122,36 @@ const put = <T>(path: string, body: unknown) => request<T>(path, { method: 'PUT'
 const del = (path: string) => request<void>(path, { method: 'DELETE' });
 
 export const api = {
+  config: () => request<AuthConfig>('/auth/config', { auth: false }),
+  registerLandlord: (body: { email: string; password: string; full_name: string; phone: string; signup_code: string }) =>
+    request<Session>('/auth/register-landlord', { method: 'POST', body, auth: false }),
+  me: () => request<Profile>('/auth/me'),
+  updateProfile: (body: { full_name: string; phone: string }) => put<Profile>('/auth/me', body),
+  changePassword: (body: { current_password: string; new_password: string }) => post<void>('/auth/change-password', body),
+  resetTenantPassword: (id: number, password: string) => put<void>(`/tenants/${id}/password`, { password }),
+
+  entries: () => request<Entry[]>('/entries'),
+  createEntry: (body: {
+    property_id: number;
+    unit_id?: number | null;
+    kind: EntryKind;
+    title: string;
+    body?: string | null;
+    amount?: number | null;
+    category?: string | null;
+    entry_date?: string;
+    target_date?: string | null;
+  }) => post<Entry>('/entries', body),
+  updateEntry: (id: number, body: Partial<Entry>) => put<Entry>(`/entries/${id}`, body),
+  deleteEntry: (id: number) => del(`/entries/${id}`),
+
+  uploadUnitPhoto: (unitId: number, file: Blob) => {
+    const form = new FormData();
+    form.append('file', file, 'unit.jpg');
+    return request<Unit>(`/units/${unitId}/photo`, { method: 'POST', body: form });
+  },
+  deleteUnitPhoto: (unitId: number) => request<Unit>(`/units/${unitId}/photo`, { method: 'DELETE' }),
+
   login: (email: string, password: string) =>
     request<Session>('/auth/login-json', { method: 'POST', body: { email, password }, auth: false }),
   register: (body: { email: string; password: string; full_name: string; phone: string; invite_code: string }) =>

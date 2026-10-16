@@ -34,5 +34,6 @@ class UnitResponse(UnitBase):
     property_name: Optional[str] = None
     current_tenant_name: Optional[str] = None
     current_tenant_id: Optional[int] = None
+    photo_url: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)

@@ -7,7 +7,7 @@ WORKDIR /srv
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY alembic.ini create_admin.py ./
+COPY alembic.ini create_admin.py reset_password.py wipe_data.py ./
 COPY alembic ./alembic
 COPY app ./app
 

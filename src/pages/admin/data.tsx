@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { api } from '../../lib/api';
-import type { InviteCode, Payment, Property, Repair, Tenant, Unit } from '../../types';
+import type { Entry, InviteCode, Payment, Property, Repair, Tenant, Unit } from '../../types';
 
 interface Data {
   properties: Property[];
@@ -9,6 +9,7 @@ interface Data {
   payments: Payment[];
   repairs: Repair[];
   invites: InviteCode[];
+  entries: Entry[];
   loading: boolean;
   error: string | null;
   reload: () => Promise<void>;
@@ -25,21 +26,23 @@ export function AdminDataProvider({ children }: { children: React.ReactNode }) {
     payments: [] as Payment[],
     repairs: [] as Repair[],
     invites: [] as InviteCode[],
+    entries: [] as Entry[],
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     try {
-      const [properties, units, tenants, payments, repairs, invites] = await Promise.all([
+      const [properties, units, tenants, payments, repairs, invites, entries] = await Promise.all([
         api.properties(),
         api.units(),
         api.tenants(),
         api.payments(),
         api.repairs(),
         api.inviteCodes(),
+        api.entries(),
       ]);
-      setState({ properties, units, tenants, payments, repairs, invites });
+      setState({ properties, units, tenants, payments, repairs, invites, entries });
       setError(null);
     } catch (e: any) {
       setError(e.message || 'Could not load your data');

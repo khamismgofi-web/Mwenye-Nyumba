@@ -1,11 +1,13 @@
 from typing import Any, List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_admin, get_current_user
+from app.core.scope import owned_unit_ids
+from app.services.notify import RepairAlert, notify_landlord_of_repair
 from app.models.maintenance import MaintenancePriority, MaintenanceRequest, MaintenanceStatus
 from app.models.tenant import Tenant
 from app.models.unit import Unit
@@ -38,6 +40,7 @@ async def list_maintenance_requests(
             return []
         stmt = stmt.where(MaintenanceRequest.tenant_id == current_user.tenant.id)
     else:
+        stmt = stmt.where(MaintenanceRequest.unit_id.in_(owned_unit_ids(current_user)))
         if status_filter is not None:
             stmt = stmt.where(MaintenanceRequest.status == status_filter)
         if priority_filter is not None:
@@ -77,6 +80,7 @@ async def list_maintenance_requests(
 @router.post("", response_model=MaintenanceResponse, status_code=status.HTTP_201_CREATED)
 async def create_maintenance_request(
     req_in: MaintenanceCreate,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ) -> Any:
@@ -101,8 +105,7 @@ async def create_maintenance_request(
                 detail="unit_id is required when creating request as admin"
             )
         unit_id = req_in.unit_id
-        # Find tenant for this unit if any
-        tenant_stmt = select(Tenant).where(Tenant.unit_id == unit_id)
+        tenant_stmt = select(Tenant).where(Tenant.unit_id == unit_id, Tenant.unit_id.in_(owned_unit_ids(current_user)))
         res = await db.execute(tenant_stmt)
         tenant = res.scalar_one_or_none()
         if not tenant:
@@ -136,6 +139,25 @@ async def create_maintenance_request(
     )
     res = await db.execute(stmt)
     m = res.scalar_one()
+
+    if current_user.role == UserRole.TENANT and m.unit and m.unit.property:
+        landlord = await db.get(User, m.unit.property.owner_id)
+        if landlord:
+            background_tasks.add_task(
+                notify_landlord_of_repair,
+                RepairAlert(
+                    landlord_email=landlord.email,
+                    landlord_phone=landlord.phone,
+                    tenant_name=m.tenant.name if m.tenant else "A tenant",
+                    tenant_phone=m.tenant.contact_info if m.tenant else None,
+                    unit_number=m.unit.unit_number,
+                    property_name=m.unit.property.name,
+                    title=m.title,
+                    description=m.description,
+                    category=m.category,
+                    priority=m.priority.value if hasattr(m.priority, "value") else str(m.priority),
+                ),
+            )
 
     return MaintenanceResponse(
         id=m.id,
@@ -172,6 +194,8 @@ async def get_maintenance_request(
             selectinload(MaintenanceRequest.unit).selectinload(Unit.property)
         )
     )
+    if current_user.role == UserRole.ADMIN:
+        stmt = stmt.where(MaintenanceRequest.unit_id.in_(owned_unit_ids(current_user)))
     result = await db.execute(stmt)
     m = result.scalar_one_or_none()
 
@@ -215,7 +239,7 @@ async def update_maintenance_request(
     """Update maintenance status, priority, or admin notes (Admin only)."""
     stmt = (
         select(MaintenanceRequest)
-        .where(MaintenanceRequest.id == request_id)
+        .where(MaintenanceRequest.id == request_id, MaintenanceRequest.unit_id.in_(owned_unit_ids(current_user)))
         .options(
             selectinload(MaintenanceRequest.tenant),
             selectinload(MaintenanceRequest.unit).selectinload(Unit.property)
@@ -261,7 +285,9 @@ async def delete_maintenance_request(
     current_user: User = Depends(get_current_admin)
 ) -> None:
     """Delete a maintenance request (Admin only)."""
-    stmt = select(MaintenanceRequest).where(MaintenanceRequest.id == request_id)
+    stmt = select(MaintenanceRequest).where(
+        MaintenanceRequest.id == request_id, MaintenanceRequest.unit_id.in_(owned_unit_ids(current_user))
+    )
     result = await db.execute(stmt)
     m = result.scalar_one_or_none()
 
