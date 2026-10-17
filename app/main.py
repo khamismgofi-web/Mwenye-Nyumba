@@ -1,13 +1,16 @@
 import asyncio
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
+from sqlalchemy.exc import DBAPIError
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from app.core.config import settings
 from app.core.database import engine
 from app.core.jobs import overdue_loop
+from app.core.schema import OUT_OF_DATE, looks_like_missing_schema, schema_problem
 from app.models import Base
 from app.routers import (
     auth_router,
@@ -75,6 +78,16 @@ async def health_check():
     return {"status": "healthy"}
 
 
+@app.exception_handler(DBAPIError)
+async def database_error_handler(request: Request, exc: DBAPIError):
+    import logging
+
+    logging.getLogger(__name__).exception("Database error on %s", request.url.path)
+    if looks_like_missing_schema(exc):
+        return JSONResponse(status_code=503, content={"detail": OUT_OF_DATE})
+    return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
+
+
 @app.get("/health/ready")
 async def readiness_check():
     try:
@@ -82,4 +95,8 @@ async def readiness_check():
             await conn.execute(text("SELECT 1"))
     except Exception:
         raise HTTPException(status_code=503, detail="Database unavailable")
+    if settings.is_production:
+        problem = await schema_problem(engine)
+        if problem:
+            raise HTTPException(status_code=503, detail=problem)
     return {"status": "ready"}

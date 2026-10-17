@@ -53,6 +53,13 @@ What is different on Vercel, and why it is already handled:
 - Vercel limits a request to 4.5 MB, so photos are limited to 4 MB. The app shrinks photos before sending, a normal phone photo ends up well under 1 MB.
 - Login limits are kept in memory per running copy of the function. Add a Vercel Firewall rate limit rule for `/api/v1/auth/*` as well (Project, Firewall, Rate limiting).
 
+### If sign-in shows an error on Vercel
+
+Open these addresses in the browser, in this order:
+1. `https://your-address/api/v1/auth/config` should show a few lines of JSON. If it says the server could not start because of its settings, the message names the variable to fix. Change it in Vercel and redeploy.
+2. `https://your-address/health/ready` should say `ready`. If it says the tables are not up to date, run `DATABASE_URL=<direct Neon string> alembic upgrade head` from your computer. If the database came from an older version of this project, empty it first or run `alembic stamp 001_initial_schema` before the upgrade.
+3. If both are fine, the landlord account does not exist in this database yet. Create it at `/#/landlord`. Accounts from the old demo data never work.
+
 ## Environment variables (API)
 
 | Variable | Required | Notes |

@@ -94,3 +94,75 @@ def test_serverless_database_options_avoid_pooled_prepared_statements():
     normal = engine_options("postgresql+asyncpg://u:p@host/db", serverless=False)
     assert normal["pool_size"] == 5 and "poolclass" not in normal
     assert "check_same_thread" in engine_options("sqlite+aiosqlite:///x.db", serverless=True)["connect_args"]
+
+
+def test_expected_schema_revision_matches_the_latest_migration():
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    from app.core.schema import SCHEMA_REVISION
+
+    config = Config("alembic.ini")
+    config.set_main_option("script_location", "alembic")
+    assert ScriptDirectory.from_config(config).get_current_head() == SCHEMA_REVISION
+
+
+async def test_schema_problem_reports_missing_and_old_history():
+    from sqlalchemy import text
+
+    from app.core.database import engine
+    from app.core.schema import SCHEMA_REVISION, schema_problem
+
+    problem = await schema_problem(engine)
+    assert problem and "alembic upgrade head" in problem and "alembic stamp 001_initial_schema" in problem
+    async with engine.begin() as conn:
+        await conn.execute(text("CREATE TABLE alembic_version (version_num VARCHAR(64) NOT NULL)"))
+        await conn.execute(text("INSERT INTO alembic_version VALUES ('003_money_numeric')"))
+    old = await schema_problem(engine)
+    assert old and "003_money_numeric" in old and SCHEMA_REVISION in old
+    async with engine.begin() as conn:
+        await conn.execute(text("UPDATE alembic_version SET version_num = :v"), {"v": SCHEMA_REVISION})
+    assert await schema_problem(engine) is None
+    async with engine.begin() as conn:
+        await conn.execute(text("DROP TABLE alembic_version"))
+
+
+async def test_missing_columns_give_a_clear_503_not_a_bare_500(client, monkeypatch):
+    from sqlalchemy import text
+
+    from app.core.database import engine
+
+    async with engine.begin() as conn:
+        await conn.execute(text("ALTER TABLE users RENAME COLUMN full_name TO full_name_old"))
+    try:
+        res = await client.post(f"{API}/auth/login-json", json={"email": "admin@test.com", "password": "admin-password-123"})
+        assert res.status_code == 503
+        assert "alembic upgrade head" in res.json()["detail"]
+    finally:
+        async with engine.begin() as conn:
+            await conn.execute(text("ALTER TABLE users RENAME COLUMN full_name_old TO full_name"))
+
+
+def test_startup_failure_explains_itself_without_leaking_secrets():
+    import importlib
+    import os
+    import subprocess
+    import sys
+
+    code = (
+        "import json, asyncio\n"
+        "import importlib.util\n"
+        "spec = importlib.util.spec_from_file_location('entry', 'api/index.py')\n"
+        "m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)\n"
+        "from httpx import ASGITransport, AsyncClient\n"
+        "async def go():\n"
+        "    async with AsyncClient(transport=ASGITransport(app=m.app), base_url='http://t') as c:\n"
+        "        r = await c.post('/api/v1/auth/login-json', json={})\n"
+        "        print(r.status_code, r.text)\n"
+        "asyncio.run(go())\n"
+    )
+    env = {**os.environ, "ENVIRONMENT": "production", "SECRET_KEY": "super-secret-short", "DATABASE_URL": "postgresql://u:p@h/db", "CORS_ORIGINS": "https://a.com", "PYTHONPATH": "."}
+    out = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True).stdout
+    assert out.startswith("500")
+    assert "SECRET_KEY must be a unique random value" in out
+    assert "super-secret-short" not in out
