@@ -12,6 +12,7 @@ from app.models import Base
 from app.routers import (
     auth_router,
     entries_router,
+    internal_router,
     invite_code_router,
     maintenance_router,
     payments_router,
@@ -27,7 +28,7 @@ async def lifespan(app: FastAPI):
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
     task = None
-    if settings.ENVIRONMENT != "test":
+    if settings.ENVIRONMENT != "test" and not settings.serverless:
         task = asyncio.create_task(overdue_loop())
     yield
     if task:
@@ -56,6 +57,7 @@ app.add_middleware(
 app.include_router(auth_router, prefix=settings.API_V1_STR)
 app.include_router(invite_code_router, prefix=settings.API_V1_STR)
 app.include_router(entries_router, prefix=settings.API_V1_STR)
+app.include_router(internal_router, prefix=settings.API_V1_STR)
 app.include_router(properties_router, prefix=settings.API_V1_STR)
 app.include_router(units_router, prefix=settings.API_V1_STR)
 app.include_router(tenants_router, prefix=settings.API_V1_STR)

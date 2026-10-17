@@ -1,3 +1,4 @@
+import os
 from typing import Annotated, List, Literal, Optional
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
@@ -41,6 +42,7 @@ class Settings(BaseSettings):
 
     PUBLIC_APP_URL: str = "http://localhost:3000"
     LANDLORD_SIGNUP_CODE: Optional[str] = None
+    CRON_SECRET: Optional[str] = None
 
     SMTP_HOST: Optional[str] = None
     SMTP_PORT: int = 587
@@ -114,6 +116,10 @@ class Settings(BaseSettings):
     @property
     def landlord_signup_enabled(self) -> bool:
         return bool(self.LANDLORD_SIGNUP_CODE)
+
+    @property
+    def serverless(self) -> bool:
+        return bool(os.environ.get("VERCEL"))
 
     @property
     def is_production(self) -> bool:

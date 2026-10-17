@@ -1,5 +1,7 @@
+import asyncio
+import logging
 from typing import Any, List, Optional
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -80,7 +82,6 @@ async def list_maintenance_requests(
 @router.post("", response_model=MaintenanceResponse, status_code=status.HTTP_201_CREATED)
 async def create_maintenance_request(
     req_in: MaintenanceCreate,
-    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ) -> Any:
@@ -143,21 +144,22 @@ async def create_maintenance_request(
     if current_user.role == UserRole.TENANT and m.unit and m.unit.property:
         landlord = await db.get(User, m.unit.property.owner_id)
         if landlord:
-            background_tasks.add_task(
-                notify_landlord_of_repair,
-                RepairAlert(
-                    landlord_email=landlord.email,
-                    landlord_phone=landlord.phone,
-                    tenant_name=m.tenant.name if m.tenant else "A tenant",
-                    tenant_phone=m.tenant.contact_info if m.tenant else None,
-                    unit_number=m.unit.unit_number,
-                    property_name=m.unit.property.name,
-                    title=m.title,
-                    description=m.description,
-                    category=m.category,
-                    priority=m.priority.value if hasattr(m.priority, "value") else str(m.priority),
-                ),
+            alert = RepairAlert(
+                landlord_email=landlord.email,
+                landlord_phone=landlord.phone,
+                tenant_name=m.tenant.name if m.tenant else "A tenant",
+                tenant_phone=m.tenant.contact_info if m.tenant else None,
+                unit_number=m.unit.unit_number,
+                property_name=m.unit.property.name,
+                title=m.title,
+                description=m.description,
+                category=m.category,
+                priority=m.priority.value if hasattr(m.priority, "value") else str(m.priority),
             )
+            try:
+                await asyncio.wait_for(notify_landlord_of_repair(alert), timeout=12)
+            except Exception:
+                logging.getLogger(__name__).exception("Landlord alert failed for repair %s", m.id)
 
     return MaintenanceResponse(
         id=m.id,

@@ -10,7 +10,7 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 
 from app.core.config import settings
 
-MAX_UPLOAD_BYTES = 8 * 1024 * 1024
+MAX_UPLOAD_BYTES = 4 * 1024 * 1024
 MAX_SIDE = 1600
 ALLOWED_FORMATS = {"JPEG", "PNG", "WEBP"}
 

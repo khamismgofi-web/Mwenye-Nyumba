@@ -175,7 +175,7 @@ async def upload_unit_photo(
     unit = await load_owned_unit(db, landlord, unit_id)
     raw = await file.read(storage.MAX_UPLOAD_BYTES + 1)
     if len(raw) > storage.MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Photo is too large (8 MB maximum)")
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Photo is too large (4 MB maximum)")
     try:
         new_key = await storage.save_unit_photo(unit.id, raw)
     except storage.InvalidImage as e:

@@ -67,3 +67,30 @@ async def test_overdue_job_flips_only_past_due_pending(client, admin_headers, un
     assert rows[ids["late"]] == "overdue"
     assert rows[ids["later"]] == "pending"
     assert rows[ids["done"]] == "paid"
+
+
+async def test_cron_endpoint_needs_the_secret(client, monkeypatch):
+    from app.core import config
+
+    assert (await client.get(f"{API}/internal/overdue")).status_code == 404
+    monkeypatch.setattr(config.settings, "CRON_SECRET", "cron-secret-for-tests")
+    assert (await client.get(f"{API}/internal/overdue")).status_code == 401
+    assert (await client.get(f"{API}/internal/overdue", headers={"Authorization": "Bearer wrong"})).status_code == 401
+    ok = await client.get(f"{API}/internal/overdue", headers={"Authorization": "Bearer cron-secret-for-tests"})
+    assert ok.status_code == 200 and ok.json() == {"marked_overdue": 0}
+
+
+def test_serverless_database_options_avoid_pooled_prepared_statements():
+    from sqlalchemy.pool import NullPool
+
+    from app.core.database import engine_options
+
+    opts = engine_options("postgresql+asyncpg://u:p@host-pooler/db?ssl=require", serverless=True)
+    assert opts["poolclass"] is NullPool
+    assert opts["connect_args"]["statement_cache_size"] == 0
+    assert opts["connect_args"]["prepared_statement_cache_size"] == 0
+    names = {opts["connect_args"]["prepared_statement_name_func"]() for _ in range(3)}
+    assert len(names) == 3
+    normal = engine_options("postgresql+asyncpg://u:p@host/db", serverless=False)
+    assert normal["pool_size"] == 5 and "poolclass" not in normal
+    assert "check_same_thread" in engine_options("sqlite+aiosqlite:///x.db", serverless=True)["connect_args"]

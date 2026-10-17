@@ -1,18 +1,28 @@
+import uuid
 from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from app.core.config import settings
 
-is_sqlite = settings.DATABASE_URL.startswith("sqlite")
+def engine_options(url: str, serverless: bool) -> dict:
+    if url.startswith("sqlite"):
+        return {"echo": False, "connect_args": {"check_same_thread": False}}
+    if serverless:
+        return {
+            "echo": False,
+            "poolclass": NullPool,
+            "connect_args": {
+                "statement_cache_size": 0,
+                "prepared_statement_cache_size": 0,
+                "prepared_statement_name_func": lambda: f"__asyncpg_{uuid.uuid4()}__",
+            },
+        }
+    return {"echo": False, "pool_pre_ping": True, "pool_size": 5, "max_overflow": 10, "pool_recycle": 1800}
 
-engine_kwargs = {"echo": False}
-if is_sqlite:
-    engine_kwargs["connect_args"] = {"check_same_thread": False}
-else:
-    engine_kwargs.update(pool_pre_ping=True, pool_size=5, max_overflow=10, pool_recycle=1800)
 
-engine = create_async_engine(settings.DATABASE_URL, **engine_kwargs)
+engine = create_async_engine(settings.DATABASE_URL, **engine_options(settings.DATABASE_URL, settings.serverless))
 
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,
