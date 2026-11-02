@@ -7,7 +7,7 @@ from sqlalchemy.exc import DBAPIError
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
-from app.core.config import settings
+from app.core.config import Settings
 from app.core.database import engine
 from app.core.jobs import overdue_loop
 from app.core.schema import OUT_OF_DATE, looks_like_missing_schema, schema_problem
