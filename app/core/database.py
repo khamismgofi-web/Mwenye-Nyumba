@@ -4,7 +4,7 @@ from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from app.core.config import Settings
+from app.core.config import settings
 
 def engine_options(url: str, serverless: bool) -> dict:
     if url.startswith("sqlite"):
@@ -22,7 +22,7 @@ def engine_options(url: str, serverless: bool) -> dict:
     return {"echo": False, "pool_pre_ping": True, "pool_size": 5, "max_overflow": 10, "pool_recycle": 1800}
 
 
-engine = create_async_engine(Settings.DATABASE_URL, **engine_options(Settings.DATABASE_URL, Settings.serverless))
+engine = create_async_engine(settings.DATABASE_URL, **engine_options(settings.DATABASE_URL, settings.serverless))
 
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,
