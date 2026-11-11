@@ -4,6 +4,7 @@ import { Wordmark } from '../components/Shell';
 import { api } from '../lib/api';
 import { Link } from '../lib/router';
 import { BuiltBy } from "../components/BuiltBy";
+<BuiltBy />
 
 const features = [
   {
